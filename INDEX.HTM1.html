@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a237e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="거래원장">
+<title>거래처 원장</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --hdr:56px;
+  --bnv:64px;
+  --primary:#1a237e;
+  --primary-dark:#0d1757;
+  --green:#2e7d32;
+  --red:#c62828;
+  --orange:#e65100;
+  --bg:#f0f2f5;
+  --card:#fff;
+  --border:#e0e0e0;
+  --txt:#333;
+  --txt2:#666;
+  --txt3:#999;
+}
+html,body{height:100%;overflow:hidden;font-family:'Malgun Gothic','맑은 고딕','Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);font-size:15px}
+
+/* ── 헤더 ── */
+.hdr{position:fixed;top:0;left:0;right:0;height:var(--hdr);background:var(--primary);display:flex;align-items:center;padding:0 16px;gap:12px;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.hdr-title{flex:1;color:#fff;font-size:17px;font-weight:700;letter-spacing:.5px}
+.hdr-sub{color:rgba(255,255,255,.65);font-size:11px;display:block;margin-top:1px;font-weight:400}
+.hdr-btn{background:rgba(255,255,255,.15);border:none;color:#fff;padding:8px 10px;border-radius:8px;font-size:20px;cursor:pointer;min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center}
+.hdr-btn:active{background:rgba(255,255,255,.3)}
+
+/* ── 메인 영역 ── */
+.main{position:fixed;top:var(--hdr);left:0;right:0;bottom:var(--bnv);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.page{display:none;min-height:100%;padding:12px 12px 16px}
+.page.on{display:block}
+
+/* ── 하단 네비 ── */
+.bnv{position:fixed;bottom:0;left:0;right:0;height:var(--bnv);background:#fff;border-top:1px solid var(--border);display:flex;z-index:100;box-shadow:0 -2px 10px rgba(0,0,0,.08)}
+.bnv-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:6px 2px;transition:all .15s;color:var(--txt3)}
+.bnv-btn.on{color:var(--primary)}
+.bnv-btn .ico{font-size:22px;transition:transform .15s}
+.bnv-btn.on .ico{transform:scale(1.1)}
+.bnv-btn span{font-size:10px;font-weight:600}
+.bnv-btn:active .ico{transform:scale(.9)}
+
+/* ── 카드 ── */
+.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.sec-title{font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sec-title .badge{background:#e8eaf6;color:var(--primary);border-radius:8px;padding:2px 8px;font-size:11px}
+
+/* ── 통계 그리드 ── */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border-radius:10px;padding:10px 8px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.stat.de{border-top:3px solid #1565c0}
+.stat.cr{border-top:3px solid var(--green)}
+.stat.bl{border-top:3px solid var(--red)}
+.stat .sl{font-size:10px;color:var(--txt3);margin-bottom:3px}
+.stat .sv{font-size:14px;font-weight:700;word-break:break-all}
+
+/* ── 거래처 칩 ── */
+.cust-chips{display:flex;flex-wrap:wrap;gap:7px;padding:2px 0}
+.chip{padding:9px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:1.5px solid var(--border);background:#fff;font-family:inherit;transition:all .15s;min-height:40px;display:inline-flex;align-items:center;gap:4px;font-weight:500}
+.chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.chip.hide{display:none}
+.chip .cx{margin-left:2px;opacity:.5;font-size:11px;padding:2px}
+.chip .cx:active{opacity:1}
+
+/* ── 폼 요소 ── */
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.fg label{font-size:12px;color:var(--txt2);font-weight:600}
+.fg input,.fg select,.fg textarea{padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;outline:none;width:100%;background:#fff;color:var(--txt);transition:border .2s;-webkit-appearance:none;appearance:none}
+.fg input:focus,.fg select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(26,35,126,.1)}
+.fg .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fg .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+
+/* ── 버튼 ── */
+.btn{padding:13px 18px;border:none;border-radius:8px;font-size:15px;font-family:inherit;cursor:pointer;font-weight:700;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;-webkit-appearance:none}
+.btn:active{transform:scale(.97);opacity:.9}
+.btn-full{width:100%}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.btn-outline{background:#fff;color:var(--primary);border:1.5px solid var(--primary)}
+.btn-excel{background:#1d6f42;color:#fff}
+.btn-orange{background:var(--orange);color:#fff}
+.btn-gray{background:#546e7a;color:#fff}
+.btn-sm{padding:9px 14px;min-height:36px;font-size:13px}
+
+/* ── 테이블 ── */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:480px}
+thead th{background:#37474f;color:#fff;padding:9px 6px;text-align:center;font-weight:600;position:sticky;top:0;z-index:1;font-size:11px}
+tbody td{padding:8px 6px;border-bottom:1px solid #f0f0f0;font-size:12px}
+tbody tr:active{background:#f5f7ff}
+.tr{text-align:right}.tc{text-align:center}
+.mono{font-family:'Consolas','D2Coding',monospace}
+.neg{color:var(--red)}
+.lpm td{background:#e0e0e0!important;font-weight:700}
+.lpc td{background:#bdbdbd!important;font-weight:700}
+.lpk td{background:#fff9c4!important;font-weight:600}
+
+/* ── 원장 ── */
+.lp{border:2px solid #333;font-size:12px;background:#fff;border-radius:4px}
+.lpt{text-align:center;font-size:15px;font-weight:700;padding:10px;letter-spacing:3px}
+.lpp{text-align:center;font-size:11px;padding:3px;color:#555}
+.lpi{display:flex;justify-content:space-between;padding:6px 10px;font-size:10px;background:#f5f5f5;border-top:1px solid #999;border-bottom:1px solid #999;flex-wrap:wrap;gap:3px}
+.lp table{border-collapse:collapse;width:100%;min-width:0}
+.lp th{background:#bdbdbd;color:#333;border:1px solid #999;padding:6px 8px;font-weight:700;text-align:center;font-size:11px}
+.lp td{border:1px solid #ccc;padding:5px 8px;font-size:11px}
+
+/* ── 품목 피커 ── */
+.item-chips{display:flex;flex-wrap:wrap;gap:7px;padding:4px 0 8px}
+.ic{padding:9px 14px;border-radius:20px;border:1.5px solid #9fa8da;background:#e8eaf6;color:var(--primary);font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;min-height:40px;display:inline-flex;align-items:center;gap:5px}
+.ic:active{background:var(--primary);color:#fff}
+.ic .di{opacity:.4;font-size:11px}
+
+/* ── 모달 (하단 시트) ── */
+.sheet-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:200}
+.sheet-bg.on{display:block}
+.sheet{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;padding:0;z-index:201;max-height:92vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1)}
+.sheet-bg.on .sheet{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;background:#ddd;border-radius:2px;margin:10px auto 0}
+.sheet-hd{padding:14px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sheet-hd h3{font-size:16px;font-weight:700;color:var(--primary);margin-top:4px}
+.sheet-body{flex:1;overflow-y:auto;padding:16px 18px;-webkit-overflow-scrolling:touch}
+.sheet-ft{padding:12px 18px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:8px;background:#fff}
+
+/* ── 메뉴 드로어 ── */
+.drawer-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:300}
+.drawer-bg.on{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:78vw;max-width:320px;background:#fff;z-index:301;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+.drawer-bg.on .drawer{transform:translateX(0)}
+.drawer-hd{background:var(--primary);padding:40px 20px 18px;color:#fff}
+.drawer-hd .co{font-size:17px;font-weight:700}
+.drawer-hd .sub{font-size:12px;opacity:.7;margin-top:3px}
+.drawer-menu{flex:1;overflow-y:auto;padding:8px 0}
+.dm{display:flex;align-items:center;gap:14px;padding:14px 20px;font-size:15px;cursor:pointer;border:none;background:transparent;width:100%;font-family:inherit;color:var(--txt);text-align:left}
+.dm:active{background:#f5f5f5}
+.dm .di{font-size:20px;width:28px;text-align:center}
+.dm-sep{height:1px;background:var(--border);margin:6px 16px}
+
+/* ── 검색바 ── */
+.srch-wrap{background:#fff;border-radius:24px;display:flex;align-items:center;padding:0 14px;gap:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:12px}
+.srch-wrap input{flex:1;border:none;padding:11px 0;font-size:15px;font-family:inherit;outline:none;background:transparent;color:var(--txt)}
+.srch-ico{color:var(--txt3);font-size:17px}
+
+/* ── 빈 상태 ── */
+.empty{text-align:center;padding:48px 20px;color:var(--txt3)}
+.empty .ei{font-size:48px;margin-bottom:12px}
+.empty p{font-size:14px;line-height:1.6}
+
+/* ── 거래 리스트 아이템 ── */
+.txn-item{display:flex;align-items:flex-start;padding:12px 0;border-bottom:1px solid #f0f0f0;gap:10px}
+.txn-item:last-child{border-bottom:none}
+.txn-dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex-shrink:0}
+.txn-dot.sale{background:#1565c0}
+.txn-dot.collect{background:var(--green)}
+.txn-info{flex:1;min-width:0}
+.txn-memo{font-size:14px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txn-date{font-size:12px;color:var(--txt3);margin-top:2px}
+.txn-right{text-align:right;flex-shrink:0}
+.txn-amt{font-size:14px;font-weight:700}
+.txn-amt.sale{color:#1565c0}
+.txn-amt.collect{color:var(--green)}
+.txn-bal{font-size:11px;color:var(--txt3);margin-top:2px}
+
+/* ── 임포트 ── */
+.drop-zone{border:2.5px dashed #9fa8da;border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:#fafbff}
+.drop-zone:active,.drop-zone.drag{background:#e8eaf6;border-color:var(--primary)}
+.drop-zone .di{font-size:40px;margin-bottom:8px}
+.drop-zone p{color:var(--txt2);font-size:14px}
+
+/* ── 선택된 거래처 배너 ── */
+.sel-banner{background:#e8eaf6;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--primary);font-weight:600}
+.sel-banner .ico{font-size:16px}
+
+/* ── 원장 요약 ── */
+.ldg-info{background:#e8eaf6;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--primary)}
+
+/* 인쇄 */
+@media print{
+  .hdr,.bnv,.page:not(.on),.stat-row,.sel-banner,.ldg-info,.card:not(#lpCard){display:none!important}
+  .main{position:static;overflow:visible}
+  .page.on{padding:0}
+  body{overflow:visible}
+  html{overflow:visible}
+  #lpCard{box-shadow:none;padding:0}
+  .lp{border:none}
+  .lpt{font-size:16pt}
+  .lp th,.lp td{font-size:9pt;padding:4px 6px}
+  @page{size:A4 portrait;margin:15mm 12mm}
+}
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="hdr">
+  <div style="flex:1;min-width:0">
+    <div class="hdr-title" id="hdrTitle">아이스킨즈</div>
+    <span class="hdr-sub">거래처 원장 관리</span>
+  </div>
+  <button class="hdr-btn" onclick="openDrawer()">☰</button>
+</div>
+
+<!-- 메인 -->
+<div class="main" id="mainArea">
+
+  <!-- ★ 페이지 0: 거래처 목록 -->
+  <div class="page on" id="pg0">
+    <div class="srch-wrap">
+      <span class="srch-ico">🔍</span>
+      <input type="text" id="srchBox" placeholder="거래처 검색..." oninput="filterChips(this.value)">
+    </div>
+    <div class="card">
+      <div class="sec-title">거래처 <span class="badge" id="cntBdg">0개</span></div>
+      <div class="cust-chips" id="chipArea">
+        <span id="noChip" style="color:var(--txt3);font-size:13px">거래처를 추가하세요 👇</span>
+      </div>
+    </div>
+    <!-- 선택된 거래처 미리보기 -->
+    <div id="custPreview" style="display:none">
+      <div class="stat-row" id="statRow">
+        <div class="stat de"><div class="sl">총매출</div><div class="sv" id="stD">0</div></div>
+        <div class="stat cr"><div class="sl">총수금</div><div class="sv" id="stC">0</div></div>
+        <div class="stat bl"><div class="sl">미수잔액</div><div class="sv" id="stB">0</div></div>
+      </div>
+      <div class="card">
+        <div class="sec-title">최근 거래 내역</div>
+        <div id="recList"><div class="empty"><p>거래 내역이 없습니다</p></div></div>
+        <button class="btn btn-outline btn-full btn-sm" style="margin-top:8px" onclick="goPage(3)">📊 전체 원장 보기</button>
+      </div>
+    </div>
+    <div style="height:10px"></div>
+  </div>
+
+  <!-- ★ 페이지 1: 매출 입력 -->
+  <div class="page" id="pg1">
+    <div id="saleBanner" class="sel-banner"><span class="ico">🏢</span><span id="saleBannerTxt">거래처를 먼저 선택하세요</span></div>
+    <div class="card">
+      <div class="sec-title">📈 매출 등록 (차변)</div>
+      <div class="fg">
+        <label>날짜</label>
+        <input type="date" id="sDate">
+      </div>
+      <div class="fg">
+        <label>품목명</label>
+        <div style="display:flex;gap:8px;align-items:stretch">
+          <input type="text" id="sItem" placeholder="직접입력 또는 품목 선택" style="flex:1">
+          <button class="btn btn-outline btn-sm" onclick="openItemSheet()">▼ 선택</button>
+        </div>
+      </div>
+      <div class="fg">
+        <div class="row2">
+          <div>
+            <label>수량</label>
+            <input type="number" id="sQty" value="1" min="1" inputmode="numeric">
+          </div>
+          <div>
+            <label>단가</label>
+            <input type="text" id="sPrice" placeholder="0" oninput="fmt(this)" inputmode="numeric">
+          </div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>총액 직접입력 <span style="font-weight:400;color:var(--txt3)">(수량×단가 자동계산 대신)</span></label>
+        <input type="text" id="sTotal" placeholder="비워두면 수량×단가로 계산" oninput="fmt(this)" inputmode="numeric">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="addSale()">📈 매출 등록</button>
+    </div>
+  </div>
+
+  <!-- ★ 페이지 2: 수금 입력 -->
+  <div class="page" id="pg2">
+    <div id="colBanner" class="sel-banner"><span class="ico">🏢</span><span id="colBannerTxt">거래처를 먼저 선택하세요</span></div>
+    <div class="card">
+      <div class="sec-title">💰 수금 등록 (대변)</div>
+      <div class="fg">
+        <label>날짜</label>
+        <input type="date" id="cDate">
+      </div>
+      <div class="fg">
+        <label>수금유형</label>
+        <select id="cType">
+          <option value="보통예금입금">보통예금입금 (현금/계좌)</option>
+          <option value="카드회수분입금">카드회수분입금</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>비고 (카드사 등)</label>
+        <input type="text" id="cNote" placeholder="예: 신한카드 1886">
+      </div>
+      <div class="fg">
+        <label>수금금액</label>
+        <input type="text" id="cAmt" placeholder="0" oninput="fmt(this)" inputmode="numeric" style="font-size:20px;font-weight:700">
+      </div>
+      <button class="btn btn-green btn-full" onclick="addCollect()">💰 수금 등록</button>
+    </div>
+  </div>
+
+  <!-- ★ 페이지 3: 원장 조회 -->
+  <div class="page" id="pg3">
+    <div id="lpCard">
+      <div class="ldg-info" id="ldgInfo" style="display:none"></div>
+      <div class="card" style="margin-bottom:8px">
+        <div class="fg">
+          <div class="row2">
+            <div>
+              <label>조회 시작</label>
+              <input type="date" id="pfrom">
+            </div>
+            <div>
+              <label>조회 끝</label>
+              <input type="date" id="pto">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="renderLedger()">🔍 조회</button>
+          <button class="btn btn-excel btn-sm" onclick="exportCurrentExcel()">📥 엑셀</button>
+          <button class="btn btn-gray btn-sm" onclick="exportCSV()">📄 CSV</button>
+          <button class="btn btn-primary btn-sm" onclick="printLedger()">🖨️ 인쇄</button>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat de"><div class="sl">총매출</div><div class="sv" id="ldgD">0</div></div>
+        <div class="stat cr"><div class="sl">총수금</div><div class="sv" id="ldgC">0</div></div>
+        <div class="stat bl"><div class="sl">미수잔액</div><div class="sv" id="ldgB">0</div></div>
+      </div>
+      <div id="lBox"></div>
+      <div class="empty" id="lEmp"><div class="ei">📊</div><p>거래처를 선택 후<br>원장을 조회하세요</p></div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- 하단 네비 -->
+<nav class="bnv">
+  <button class="bnv-btn on" id="nav0" onclick="goPage(0)"><span class="ico">👥</span><span>거래처</span></button>
+  <button class="bnv-btn" id="nav1" onclick="goPage(1)"><span class="ico">📈</span><span>매출</span></button>
+  <button class="bnv-btn" id="nav2" onclick="goPage(2)"><span class="ico">💰</span><span>수금</span></button>
+  <button class="bnv-btn" id="nav3" onclick="goPage(3)"><span class="ico">📊</span><span>원장</span></button>
+</nav>
+
+<!-- ===== 메뉴 드로어 ===== -->
+<div class="drawer-bg" id="drawerBg" onclick="closeDrawer()">
+  <div class="drawer" onclick="event.stopPropagation()">
+    <div class="drawer-hd">
+      <div class="co" id="drawerCo">아이스킨즈</div>
+      <div class="sub">거래처 원장 관리 시스템</div>
+    </div>
+    <div class="drawer-menu">
+      <button class="dm" onclick="closeDrawer();openSettings()"><span class="di">⚙️</span>회사 설정</button>
+      <div class="dm-sep"></div>
+      <button class="dm" onclick="closeDrawer();exportAllExcel()"><span class="di">📥</span>전체 엑셀 내보내기</button>
+      <button class="dm" onclick="closeDrawer();exportCurrentExcel()"><span class="di">📊</span>선택 거래처 엑셀</button>
+      <button class="dm" onclick="closeDrawer();exportCSV()"><span class="di">📄</span>CSV 내보내기</button>
+      <div class="dm-sep"></div>
+      <button class="dm" onclick="closeDrawer();backupJSON()"><span class="di">💾</span>JSON 백업 (내보내기)</button>
+      <button class="dm" onclick="closeDrawer();document.getElementById('jsonFileInM').click()"><span class="di">📲</span>JSON 가져오기 (PC→폰)</button>
+      <input type="file" id="jsonFileInM" accept=".json" style="display:none" onchange="importJSONFile(this.files[0]);this.value=''">
+      <button class="dm" onclick="closeDrawer();openImport()"><span class="di">📂</span>엑셀 파일 가져오기</button>
+      <div class="dm-sep"></div>
+      <button class="dm" onclick="closeDrawer();openAddCust()"><span class="di">➕</span>거래처 추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 거래처 추가 시트 ===== -->
+<div class="sheet-bg" id="shAddCust">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd"><h3>거래처 추가</h3></div>
+    <div class="sheet-body">
+      <div class="fg"><label>거래처 코드 <span style="font-weight:400;color:var(--txt3)">(비워두면 자동생성)</span></label><input type="text" id="ncCode" placeholder="예: 0001"></div>
+      <div class="fg"><label>거래처명 *</label><input type="text" id="ncName" placeholder="거래처명 입력"></div>
+      <div class="fg"><label>전기이월 잔액</label><input type="text" id="ncBal" placeholder="0" oninput="fmt(this)" inputmode="numeric"></div>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn btn-outline" style="flex:1" onclick="closeSheet('shAddCust')">취소</button>
+      <button class="btn btn-primary" style="flex:2" onclick="addCust()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 품목 선택 시트 ===== -->
+<div class="sheet-bg" id="shItem">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd"><h3>품목 선택</h3></div>
+    <div class="sheet-body">
+      <div class="item-chips" id="ics"></div>
+      <div class="fg" style="margin-top:8px">
+        <label>새 품목 추가</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="niTxt" placeholder="새 품목명..." style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="addItem()">추가</button>
+        </div>
+      </div>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn btn-outline btn-full" onclick="closeSheet('shItem')">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 회사 설정 시트 ===== -->
+<div class="sheet-bg" id="shSettings">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd"><h3>⚙️ 회사 설정</h3></div>
+    <div class="sheet-body">
+      <div class="fg"><label>회사명</label><input type="text" id="cmpNm" value="아이스킨즈"></div>
+      <div class="fg"><label>계정과목</label><input type="text" id="accCd" value="[108] 외상매출금"></div>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn btn-outline" style="flex:1" onclick="closeSheet('shSettings')">취소</button>
+      <button class="btn btn-primary" style="flex:2" onclick="saveSettings()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 엑셀 가져오기 시트 ===== -->
+<div class="sheet-bg" id="shImport">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd"><h3>📂 엑셀 파일 가져오기</h3></div>
+    <div class="sheet-body">
+      <p style="font-size:13px;color:var(--txt2);margin-bottom:14px">날짜·적요·차변·대변 컬럼이 있는 거래원장 파일을 지원합니다.</p>
+      <div class="drop-zone" id="impArea" onclick="document.getElementById('impFile').click()"
+           ondragover="event.preventDefault();this.classList.add('drag')"
+           ondragleave="this.classList.remove('drag')"
+           ondrop="dropFile(event)">
+        <div class="di">📊</div>
+        <p>탭하여 파일 선택<br><span style="font-size:12px;color:var(--txt3)">.xlsx .xls 지원</span></p>
+      </div>
+      <input type="file" id="impFile" accept=".xlsx,.xls" style="display:none" onchange="loadFile(this.files[0])">
+      <div id="impPrev" style="display:none;margin-top:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px">미리보기 <span id="impCnt"></span></div>
+        <div style="overflow-x:auto;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:12px">
+          <div id="impTbl"></div>
+        </div>
+        <div class="fg"><label>거래처 코드 <span style="font-weight:400;color:var(--txt3)">(비워두면 자동생성)</span></label><input type="text" id="impCode" placeholder="자동생성"></div>
+        <div class="fg"><label>거래처명 *</label><input type="text" id="impName" placeholder="거래처명 입력"></div>
+        <div class="fg"><label>전기이월 잔액</label><input type="text" id="impBal" placeholder="0" oninput="fmt(this)" inputmode="numeric"></div>
+      </div>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn btn-outline" style="flex:1" onclick="closeSheet('shImport');resetImport()">취소</button>
+      <button class="btn btn-orange" style="flex:2;display:none" id="impOkBtn" onclick="confirmImport()">📥 가져오기</button>
+      <button class="btn btn-gray" style="flex:2" id="impWaitBtn">파일을 선택하세요</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── 데이터 ── */
+var custs=[], txns=[], sel=null, nid=1, impRows=[];
+var items=['NCTF 135 HA','NANOSOFT','GR-YOUTH MASK','덤클라펌','BSK2'];
+
+/* ── localStorage ── */
+function save(){
+  try{
+    localStorage.setItem('ar_c',JSON.stringify(custs));
+    localStorage.setItem('ar_t',JSON.stringify(txns));
+    localStorage.setItem('ar_s',sel||'');
+    localStorage.setItem('ar_n',nid+'');
+    localStorage.setItem('ar_i',JSON.stringify(items));
+    var c=document.getElementById('cmpNm'),a=document.getElementById('accCd');
+    if(c)localStorage.setItem('ar_co',c.value);
+    if(a)localStorage.setItem('ar_ac',a.value);
+  }catch(e){}
+}
+function load(){
+  try{
+    var c=localStorage.getItem('ar_c');if(c)custs=JSON.parse(c);
+    var t=localStorage.getItem('ar_t');if(t)txns=JSON.parse(t);
+    var s=localStorage.getItem('ar_s');if(s&&s!=='null')sel=s;
+    var n=localStorage.getItem('ar_n');if(n)nid=parseInt(n)||1;
+    var i=localStorage.getItem('ar_i');if(i)items=JSON.parse(i);
+    var co=localStorage.getItem('ar_co'),ac=localStorage.getItem('ar_ac');
+    if(co){var e=document.getElementById('cmpNm');if(e)e.value=co;}
+    if(ac){var e=document.getElementById('accCd');if(e)e.value=ac;}
+  }catch(e){}
+}
+
+/* ── 코드 자동생성 ── */
+function nextCode(){
+  var used=custs.map(function(c){return parseInt(c.code)||0;});
+  var n=1;while(used.indexOf(n)>=0)n++;
+  return ('000'+n).slice(-4);
+}
+
+/* ── 초기화 ── */
+function init(){
+  load();
+  var y=new Date().getFullYear(),td=new Date().toISOString().split('T')[0];
+  document.getElementById('pfrom').value=y+'-01-01';
+  document.getElementById('pto').value=y+'-12-31';
+  document.getElementById('sDate').value=td;
+  document.getElementById('cDate').value=td;
+  updateHdr();
+  renderChips();
+  renderHomeStat();
+  renderRecList();
+  renderLedger();
+  initPWA();
+}
+
+/* ── PWA 설치 지원 ── */
+function initPWA(){
+  try{
+    var mn={name:document.getElementById('cmpNm').value||'거래원장',short_name:'거래원장',
+      start_url:'.',display:'standalone',background_color:'#f0f2f5',theme_color:'#1a237e',
+      icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%231a237e"/><text y=".9em" font-size="75" x="10">📊</text></svg>',sizes:'any',type:'image/svg+xml'}]};
+    var blob=new Blob([JSON.stringify(mn)],{type:'application/manifest+json'});
+    var link=document.createElement('link');link.rel='manifest';link.href=URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  }catch(e){}
+}
+
+/* ── 네비 ── */
+function goPage(n){
+  for(var i=0;i<4;i++){
+    document.getElementById('pg'+i).classList.toggle('on',i===n);
+    document.getElementById('nav'+i).classList.toggle('on',i===n);
+  }
+  if(n===3)renderLedger();
+  updateBanners();
+  document.getElementById('mainArea').scrollTop=0;
+}
+
+/* ── 헤더 업데이트 ── */
+function updateHdr(){
+  var co=document.getElementById('cmpNm');
+  if(co){
+    document.getElementById('hdrTitle').textContent=co.value||'거래처 원장';
+    document.getElementById('drawerCo').textContent=co.value||'거래처 원장';
+  }
+}
+
+/* ── 배너 업데이트 ── */
+function updateBanners(){
+  var txt=sel?('선택: '+sel):'거래처를 먼저 선택하세요 (거래처 탭)';
+  document.getElementById('saleBannerTxt').textContent=txt;
+  document.getElementById('colBannerTxt').textContent=txt;
+}
+
+/* ── 드로어 ── */
+function openDrawer(){document.getElementById('drawerBg').classList.add('on');}
+function closeDrawer(){document.getElementById('drawerBg').classList.remove('on');}
+
+/* ── 시트 ── */
+function openSheet(id){document.getElementById(id).classList.add('on');}
+function closeSheet(id){document.getElementById(id).classList.remove('on');}
+
+/* ── 회사 설정 ── */
+function openSettings(){openSheet('shSettings');}
+function saveSettings(){
+  updateHdr();
+  save();
+  closeSheet('shSettings');
+}
+
+/* ── 거래처 칩 ── */
+function renderChips(){
+  var area=document.getElementById('chipArea');
+  document.getElementById('cntBdg').textContent=custs.length+'개';
+  area.querySelectorAll('.chip').forEach(function(c){c.remove();});
+  var nc=document.getElementById('noChip');
+  if(custs.length===0){if(nc)nc.style.display='';return;}
+  if(nc)nc.style.display='none';
+  custs.forEach(function(c){
+    var btn=document.createElement('button');
+    btn.className='chip'+(c.name===sel?' on':'');
+    btn.innerHTML='['+c.code+'] '+c.name+'<span class="cx">✕</span>';
+    btn.querySelector('.cx').addEventListener('click',function(e){
+      e.stopPropagation();
+      if(confirm('"'+c.name+'" 거래처와 모든 거래를 삭제하시겠습니까?')){
+        custs=custs.filter(function(x){return x.name!==c.name;});
+        txns=txns.filter(function(x){return x.cust!==c.name;});
+        if(sel===c.name)sel=custs.length?custs[0].name:null;
+        save();renderChips();renderHomeStat();renderRecList();renderLedger();
+      }
+    });
+    btn.addEventListener('click',function(){
+      sel=c.name;save();renderChips();renderHomeStat();renderRecList();renderLedger();updateBanners();
+    });
+    area.appendChild(btn);
+  });
+  filterChips(document.getElementById('srchBox').value);
+}
+
+/* ── 검색 ── */
+function filterChips(q){
+  document.querySelectorAll('#chipArea .chip').forEach(function(ch){
+    ch.classList.toggle('hide',!!(q&&ch.textContent.toLowerCase().indexOf(q.toLowerCase())<0));
+  });
+}
+
+/* ── 홈 통계 ── */
+function renderHomeStat(){
+  var preview=document.getElementById('custPreview');
+  if(!sel){preview.style.display='none';return;}
+  preview.style.display='block';
+  var data=txns.filter(function(t){return t.cust===sel;});
+  var cs=custs.find(function(c){return c.name===sel;});
+  var bal=cs?cs.carry:0,totD=0,totC=0;
+  data.forEach(function(t){totD+=t.debit;totC+=t.credit;bal+=t.debit-t.credit;});
+  document.getElementById('stD').textContent=fN(totD);
+  document.getElementById('stC').textContent=fN(totC);
+  document.getElementById('stB').textContent=fN(bal);
+}
+
+/* ── 최근 거래 (리스트 스타일) ── */
+function renderRecList(){
+  var el=document.getElementById('recList');
+  if(!sel){el.innerHTML='<div class="empty"><p>거래처를 선택하세요</p></div>';return;}
+  var data=txns.filter(function(t){return t.cust===sel;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;}).slice(0,15);
+  if(!data.length){el.innerHTML='<div class="empty"><p>거래 내역이 없습니다</p></div>';return;}
+  var cs=custs.find(function(c){return c.name===sel;});
+  var allData=txns.filter(function(t){return t.cust===sel;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});
+  var bals={};var b=cs?cs.carry:0;
+  allData.forEach(function(t){b+=t.debit-t.credit;bals[t.id]=b;});
+  el.innerHTML=data.map(function(t){
+    var isSale=t.type==='sale';
+    return '<div class="txn-item">'+
+      '<div class="txn-dot '+(isSale?'sale':'collect')+'"></div>'+
+      '<div class="txn-info"><div class="txn-memo">'+t.memo+'</div><div class="txn-date">'+t.date+'</div></div>'+
+      '<div class="txn-right">'+
+      '<div class="txn-amt '+(isSale?'sale':'collect')+'">'+(isSale?'+':'-')+fN(isSale?t.debit:t.credit)+'</div>'+
+      '<div class="txn-bal">잔액 '+fN(bals[t.id]||0)+'</div>'+
+      '</div></div>';
+  }).join('');
+}
+
+/* ── 거래처 추가 ── */
+function openAddCust(){openSheet('shAddCust');setTimeout(function(){document.getElementById('ncName').focus();},300);}
+function addCust(){
+  var name=document.getElementById('ncName').value.trim();
+  if(!name)return alert('거래처명을 입력하세요.');
+  if(custs.find(function(c){return c.name===name;}))return alert('이미 존재합니다.');
+  var code=document.getElementById('ncCode').value.trim()||nextCode();
+  var bal=pnum(document.getElementById('ncBal').value);
+  custs.push({code:code,name:name,carry:bal});
+  sel=name;
+  document.getElementById('ncCode').value='';
+  document.getElementById('ncName').value='';
+  document.getElementById('ncBal').value='';
+  closeSheet('shAddCust');
+  save();renderChips();renderHomeStat();renderRecList();updateBanners();
+}
+
+/* ── 매출 등록 ── */
+function addSale(){
+  if(!sel)return alert('거래처 탭에서 거래처를 먼저 선택하세요.');
+  var date=document.getElementById('sDate').value;
+  if(!date)return alert('날짜를 입력하세요.');
+  var item=document.getElementById('sItem').value.trim();
+  var qty=parseInt(document.getElementById('sQty').value)||1;
+  var price=pnum(document.getElementById('sPrice').value);
+  var tot=pnum(document.getElementById('sTotal').value);
+  var amount=tot||(price*qty);
+  if(!amount||amount<=0)return alert('금액을 입력하세요.');
+  var memo=item||'매출';
+  if(item&&price&&qty)memo=item+' '+qty+' X '+price.toLocaleString('ko-KR');
+  else if(item&&tot)memo=item;
+  txns.push({id:nid++,cust:sel,date:date,type:'sale',memo:memo,debit:amount,credit:0});
+  document.getElementById('sItem').value='';
+  document.getElementById('sQty').value='1';
+  document.getElementById('sPrice').value='';
+  document.getElementById('sTotal').value='';
+  save();renderHomeStat();renderRecList();
+  alert('✅ 매출이 등록되었습니다.\n'+memo+'\n'+fN(amount)+'원');
+}
+
+/* ── 수금 등록 ── */
+function addCollect(){
+  if(!sel)return alert('거래처 탭에서 거래처를 먼저 선택하세요.');
+  var date=document.getElementById('cDate').value;
+  if(!date)return alert('날짜를 입력하세요.');
+  var ctype=document.getElementById('cType').value;
+  var note=document.getElementById('cNote').value.trim();
+  var amt=pnum(document.getElementById('cAmt').value);
+  if(!amt||amt<=0)return alert('수금금액을 입력하세요.');
+  var memo='외상매출금 '+ctype+(note?'('+note+')':'');
+  txns.push({id:nid++,cust:sel,date:date,type:'collect',memo:memo,debit:0,credit:amt});
+  document.getElementById('cNote').value='';
+  document.getElementById('cAmt').value='';
+  save();renderHomeStat();renderRecList();
+  alert('✅ 수금이 등록되었습니다.\n'+fN(amt)+'원');
+}
+
+/* ── 원장 ── */
+function renderLedger(){
+  var box=document.getElementById('lBox'),emp=document.getElementById('lEmp');
+  var info=document.getElementById('ldgInfo');
+  if(!sel){box.innerHTML='';emp.style.display='block';info.style.display='none';
+    document.getElementById('ldgD').textContent='0';document.getElementById('ldgC').textContent='0';document.getElementById('ldgB').textContent='0';return;}
+  var from=document.getElementById('pfrom').value,to=document.getElementById('pto').value;
+  var data=txns.filter(function(t){return t.cust===sel;});
+  if(from)data=data.filter(function(t){return t.date>=from;});
+  if(to)data=data.filter(function(t){return t.date<=to;});
+  data.sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});
+  var cs=custs.find(function(c){return c.name===sel;});
+  var carry=cs?cs.carry:0;
+  var co=document.getElementById('cmpNm').value||'아이스킨즈';
+  var ac=document.getElementById('accCd').value||'[108] 외상매출금';
+  var ps=(from||'').replace(/-/g,'.')+' ~ '+(to||'').replace(/-/g,'.');
+  if(!data.length&&!carry){box.innerHTML='';emp.style.display='block';info.style.display='none';
+    document.getElementById('ldgD').textContent='0';document.getElementById('ldgC').textContent='0';document.getElementById('ldgB').textContent='0';return;}
+  emp.style.display='none';
+  info.style.display='block';
+  info.textContent='📌 '+sel+' | '+ps;
+  var mo={};
+  data.forEach(function(t){var m=t.date.substring(0,7);if(!mo[m])mo[m]=[];mo[m].push(t);});
+  var bal=carry,cumD=carry,cumC=0,totD=0,totC=0,rows='';
+  if(carry)rows+='<tr class="lpk"><td class="tc"></td><td>전기이월</td><td class="tr mono">'+fN(carry)+'</td><td></td><td class="tr mono">'+fN(carry)+'</td></tr>';
+  Object.keys(mo).sort().forEach(function(m){
+    var it=mo[m],mD=0,mC=0;
+    it.forEach(function(t){
+      bal+=t.debit-t.credit;mD+=t.debit;mC+=t.credit;
+      rows+='<tr><td class="tc">'+t.date.substring(5)+'</td><td>'+t.memo+'</td>'+
+        '<td class="tr mono">'+(t.debit?fN(t.debit):'')+'</td>'+
+        '<td class="tr mono">'+(t.credit?fN(t.credit):'')+'</td>'+
+        '<td class="tr mono'+(bal<0?' neg':'')+'">'+(fN(bal))+'</td></tr>';
+    });
+    totD+=mD;totC+=mC;cumD+=mD;cumC+=mC;
+    rows+='<tr class="lpm"><td></td><td class="tc">[ 월 &nbsp;&nbsp;&nbsp; 계 ]</td><td class="tr mono">'+fN(mD)+'</td><td class="tr mono">'+fN(mC)+'</td><td></td></tr>';
+    rows+='<tr class="lpc"><td></td><td class="tc">[ 누 &nbsp;&nbsp;&nbsp; 계 ]</td><td class="tr mono">'+fN(cumD)+'</td><td class="tr mono">'+fN(cumC)+'</td><td></td></tr>';
+  });
+  box.innerHTML='<div class="tbl-wrap"><div class="lp">'+
+    '<div class="lpt">거래처 &nbsp; 원장(내용)</div>'+
+    '<div class="lpp">'+ps+'</div>'+
+    '<div class="lpi"><span>회사명 : '+co+' &nbsp; 계정과목 : '+ac+'</span>'+
+    '<span>거래처 : ['+(cs?cs.code:'')+'] '+sel+'</span></div>'+
+    '<table><thead><tr><th style="width:55px">날짜</th><th>적요</th>'+
+    '<th style="width:95px">차변</th><th style="width:95px">대변</th><th style="width:95px">잔액</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div></div>';
+  document.getElementById('ldgD').textContent=fN(totD);
+  document.getElementById('ldgC').textContent=fN(totC);
+  document.getElementById('ldgB').textContent=fN(bal);
+}
+
+/* ── 엑셀 내보내기 ── */
+function buildSheet(cs){
+  var co=document.getElementById('cmpNm').value||'아이스킨즈';
+  var ac=document.getElementById('accCd').value||'[108] 외상매출금';
+  var from=document.getElementById('pfrom').value,to=document.getElementById('pto').value;
+  var ps=(from||'').replace(/-/g,'.')+' ~ '+(to||'').replace(/-/g,'.');
+  var data=txns.filter(function(t){return t.cust===cs.name;});
+  if(from)data=data.filter(function(t){return t.date>=from;});
+  if(to)data=data.filter(function(t){return t.date<=to;});
+  data.sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});
+  var rows=[['','','  거래처  원장(내용)  ','',''],['','','','',''],['','',ps,'',''],
+    ['','','','',''],['','','','',''],['','','','',''],
+    ['회사명 : '+co,'계정과목 : '+ac,'','','거래처 : ['+cs.code+'] '+cs.name],
+    ['','','','',''],['날짜','적요','차변','대변','잔액']];
+  var bal=cs.carry,cumD=cs.carry,cumC=0;
+  if(cs.carry)rows.push(['','전기이월',cs.carry,'',cs.carry]);
+  var mo={};
+  data.forEach(function(t){var m=t.date.substring(0,7);if(!mo[m])mo[m]=[];mo[m].push(t);});
+  Object.keys(mo).sort().forEach(function(m){
+    var mD=0,mC=0;
+    mo[m].forEach(function(t){
+      bal+=t.debit-t.credit;mD+=t.debit;mC+=t.credit;
+      rows.push([t.date.substring(5),t.memo,t.debit||'',t.credit||'',bal]);
+    });
+    cumD+=mD;cumC+=mC;
+    rows.push(['','          [ 월           계 ]',mD,mC,'']);
+    rows.push(['','          [ 누           계 ]',cumD,cumC,'']);
+  });
+  return rows;
+}
+function applyXlsxStyle(wb,sn,rows){
+  var ws=wb.Sheets[sn];
+  for(var r=0;r<rows.length;r++)for(var c=2;c<=4;c++){var a=XLSX.utils.encode_cell({r:r,c:c});if(ws[a]&&typeof ws[a].v==='number')ws[a].z='#,##0';}
+  ws['!cols']=[{wch:10},{wch:42},{wch:16},{wch:16},{wch:16}];
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:2,c:0},e:{r:2,c:4}}];
+  ws['!pageSetup']={paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0};
+  ws['!margins']={top:0.75,bottom:0.75,left:0.7,right:0.7,header:0.3,footer:0.3};
+}
+function exportCurrentExcel(){
+  if(!sel)return alert('거래처를 선택하세요.');
+  var cs=custs.find(function(c){return c.name===sel;}),rows=buildSheet(cs);
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'거래원장');
+  applyXlsxStyle(wb,'거래원장',rows);
+  XLSX.writeFile(wb,'거래처원장_'+sel+'_'+document.getElementById('pfrom').value+'_'+document.getElementById('pto').value+'.xlsx');
+}
+function exportAllExcel(){
+  if(!custs.length)return alert('거래처가 없습니다.');
+  var wb=XLSX.utils.book_new();
+  custs.forEach(function(cs){
+    var rows=buildSheet(cs),sn=cs.name.substring(0,31);
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),sn);applyXlsxStyle(wb,sn,rows);
+  });
+  XLSX.writeFile(wb,'거래처원장_전체_'+new Date().toISOString().split('T')[0]+'.xlsx');
+}
+
+/* ── CSV ── */
+function exportCSV(){
+  if(!sel)return alert('거래처를 선택하세요.');
+  var cs=custs.find(function(c){return c.name===sel;});
+  var from=document.getElementById('pfrom').value,to=document.getElementById('pto').value;
+  var data=txns.filter(function(t){return t.cust===sel;});
+  if(from)data=data.filter(function(t){return t.date>=from;});
+  if(to)data=data.filter(function(t){return t.date<=to;});
+  data.sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});
+  var rows=[['날짜','적요','차변(매출)','대변(수금)','잔액']];
+  var bal=cs.carry,cumD=cs.carry,cumC=0;
+  if(cs.carry)rows.push(['','전기이월',cs.carry,'',cs.carry]);
+  var mo={};
+  data.forEach(function(t){var m=t.date.substring(0,7);if(!mo[m])mo[m]=[];mo[m].push(t);});
+  Object.keys(mo).sort().forEach(function(m){
+    var mD=0,mC=0;
+    mo[m].forEach(function(t){
+      bal+=t.debit-t.credit;mD+=t.debit;mC+=t.credit;
+      rows.push([t.date.substring(5),t.memo,t.debit||'',t.credit||'',bal]);
+    });
+    cumD+=mD;cumC+=mC;
+    rows.push(['','[월계]',mD,mC,'']);rows.push(['','[누계]',cumD,cumC,'']);
+  });
+  var BOM='\uFEFF';
+  var csv=BOM+rows.map(function(r){return r.map(function(v){var s=String(v==null?'':v);return s.indexOf(',')>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='거래원장_'+sel+'_'+from+'_'+to+'.csv';a.click();
+}
+
+/* ── PDF 인쇄 ── */
+function printLedger(){
+  goPage(3);renderLedger();
+  setTimeout(function(){window.print();},400);
+}
+
+/* ── JSON 백업 ── */
+function backupJSON(){
+  var d={exportedAt:new Date().toISOString(),company:document.getElementById('cmpNm').value,account:document.getElementById('accCd').value,customers:custs,txns:txns,itemList:items};
+  var blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='거래원장_데이터.json';a.click();
+}
+
+/* ── JSON 가져오기 (PC ↔ 모바일 상호 호환) ── */
+function importJSONFile(file){
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var d=JSON.parse(e.target.result);
+      if(!d.customers||!d.txns)return alert('올바른 거래원장 JSON 파일이 아닙니다.');
+      var msg='📲 JSON 파일을 가져옵니다.\n\n'+
+        '거래처: '+d.customers.length+'개\n'+
+        '거래 내역: '+d.txns.length+'건\n\n'+
+        '⚠️ 기존 데이터가 모두 이 파일로 덮어씌워집니다.\n계속하시겠습니까?';
+      if(!confirm(msg))return;
+      custs=d.customers||[];
+      txns=d.txns||[];
+      if(d.itemList&&d.itemList.length)items=d.itemList;
+      nid=Math.max.apply(null,txns.map(function(t){return t.id||0;}).concat([0]))+1;
+      sel=custs.length?custs[0].name:null;
+      var co=document.getElementById('cmpNm'),ac=document.getElementById('accCd');
+      if(d.company&&co)co.value=d.company;
+      if(d.account&&ac)ac.value=d.account;
+      save();renderChips();renderHomeStat();renderRecList();renderLedger();updateBanners();updateHdr();
+      alert('✅ JSON 가져오기 완료!\n거래처 '+custs.length+'개, 거래 '+txns.length+'건 복원되었습니다.');
+    }catch(err){alert('JSON 파일 읽기 오류: '+err.message);}
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+/* ── 품목 피커 ── */
+function openItemSheet(){openSheet('shItem');renderItems();}
+function renderItems(){
+  var el=document.getElementById('ics');el.innerHTML='';
+  items.forEach(function(item,i){
+    var sp=document.createElement('span');sp.className='ic';
+    sp.innerHTML=item+'<span class="di">✕</span>';
+    sp.querySelector('.di').addEventListener('click',function(e){
+      e.stopPropagation();
+      if(confirm('"'+item+'" 삭제?')){items.splice(i,1);save();renderItems();}
+    });
+    sp.addEventListener('click',function(){
+      document.getElementById('sItem').value=item;
+      closeSheet('shItem');
+      setTimeout(function(){document.getElementById('sPrice').focus();},300);
+    });
+    el.appendChild(sp);
+  });
+}
+function addItem(){
+  var v=document.getElementById('niTxt').value.trim();
+  if(!v)return;
+  if(items.indexOf(v)<0)items.push(v);
+  document.getElementById('niTxt').value='';
+  save();renderItems();
+}
+
+/* ── 엑셀 가져오기 ── */
+function openImport(){
+  resetImport();
+  openSheet('shImport');
+}
+function dropFile(e){e.preventDefault();document.getElementById('impArea').classList.remove('drag');var f=e.dataTransfer.files[0];if(f)loadFile(f);}
+function loadFile(file){
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'binary'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var hRow=-1,cols={date:0,memo:1,debit:2,credit:3};
+      for(var r=0;r<Math.min(raw.length,20);r++){
+        var row=raw[r].map(function(v){return String(v).trim();});
+        var di=row.findIndex(function(v){return v==='날짜'||v==='일자';});
+        var mi=row.findIndex(function(v){return v==='적요'||v==='내용';});
+        var ci=row.findIndex(function(v){return v==='차변'||v==='매출';});
+        var ri=row.findIndex(function(v){return v==='대변'||v==='수금';});
+        if(di>=0&&(ci>=0||ri>=0)){hRow=r;cols={date:di,memo:mi>=0?mi:1,debit:ci>=0?ci:2,credit:ri>=0?ri:3};break;}
+      }
+      impRows=[];
+      var y=new Date().getFullYear(),start=hRow>=0?hRow+1:0;
+      for(var r=start;r<raw.length;r++){
+        var row=raw[r];
+        var dv=String(row[cols.date]||'').trim();
+        var mm=String(row[cols.memo]||'').trim();
+        var db=parseFloat(String(row[cols.debit]||'').replace(/,/g,''))||0;
+        var cr=parseFloat(String(row[cols.credit]||'').replace(/,/g,''))||0;
+        if(!dv&&!mm&&!db&&!cr)continue;
+        if(mm.indexOf('월')>=0&&mm.indexOf('계')>=0)continue;
+        if(mm==='전기이월')continue;
+        if(!dv)continue;
+        var nd=dv;
+        if(/^\d{2}-\d{2}$/.test(dv)){var p=dv.split('-');nd=y+'-'+p[0]+'-'+p[1];}
+        else if(/^\d{1,2}-\d{1,2}$/.test(dv)){var p=dv.split('-');nd=y+'-'+('0'+p[0]).slice(-2)+'-'+('0'+p[1]).slice(-2);}
+        if(db>0||cr>0)impRows.push({date:nd,memo:mm,debit:db,credit:cr});
+      }
+      showImpPrev();
+    }catch(err){alert('파일 읽기 오류: '+err.message);}
+  };
+  reader.readAsBinaryString(file);
+}
+function showImpPrev(){
+  var pw=document.getElementById('impPrev');
+  var cnt=document.getElementById('impCnt');
+  var btn=document.getElementById('impOkBtn');
+  var waitBtn=document.getElementById('impWaitBtn');
+  cnt.textContent='('+impRows.length+'건)';
+  if(!impRows.length){pw.style.display='none';btn.style.display='none';waitBtn.style.display='';return;}
+  pw.style.display='block';
+  btn.style.display='';
+  waitBtn.style.display='none';
+  var s=impRows.slice(0,20);
+  document.getElementById('impTbl').innerHTML=
+    '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>'+
+    '<th style="background:#37474f;color:#fff;padding:6px 8px">날짜</th><th style="background:#37474f;color:#fff;padding:6px 8px">적요</th>'+
+    '<th style="background:#37474f;color:#fff;padding:6px 8px">차변</th><th style="background:#37474f;color:#fff;padding:6px 8px">대변</th></tr></thead><tbody>'+
+    s.map(function(r){return '<tr style="border-bottom:1px solid #eee"><td style="padding:5px 8px">'+r.date+'</td><td style="padding:5px 8px">'+r.memo+'</td><td style="padding:5px 8px;text-align:right">'+(r.debit?fN(r.debit):'')+'</td><td style="padding:5px 8px;text-align:right">'+(r.credit?fN(r.credit):'')+'</td></tr>';}).join('')+
+    (impRows.length>20?'<tr><td colspan="4" style="text-align:center;color:#999;padding:6px">... 외 '+(impRows.length-20)+'건</td></tr>':'')+
+    '</tbody></table>';
+}
+function confirmImport(){
+  if(!impRows.length)return alert('가져올 데이터가 없습니다.');
+  var name=document.getElementById('impName').value.trim();
+  if(!name)return alert('거래처명을 입력하세요.');
+  var code=document.getElementById('impCode').value.trim()||nextCode();
+  var bal=pnum(document.getElementById('impBal').value);
+  if(!custs.find(function(c){return c.name===name;}))custs.push({code:code,name:name,carry:bal});
+  sel=name;
+  impRows.forEach(function(r){txns.push({id:nid++,cust:name,date:r.date,type:r.debit>0?'sale':'collect',memo:r.memo,debit:r.debit,credit:r.credit});});
+  save();renderChips();renderHomeStat();renderRecList();renderLedger();updateBanners();
+  closeSheet('shImport');
+  alert('✅ "'+name+'" 거래처에 '+impRows.length+'건이 등록되었습니다.');
+}
+function resetImport(){
+  impRows=[];
+  var pw=document.getElementById('impPrev');if(pw)pw.style.display='none';
+  var btn=document.getElementById('impOkBtn');if(btn)btn.style.display='none';
+  var wb=document.getElementById('impWaitBtn');if(wb)wb.style.display='';
+  var fi=document.getElementById('impFile');if(fi)fi.value='';
+  ['impCode','impName','impBal'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+}
+
+/* ── 유틸 ── */
+function fN(n){return (n||0).toLocaleString('ko-KR');}
+function pnum(s){return parseInt((s||'').replace(/[^0-9]/g,''),10)||0;}
+function fmt(el){var n=pnum(el.value);el.value=n?n.toLocaleString('ko-KR'):'';}
+
+/* ── Enter 키 ── */
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    if(document.activeElement.id==='niTxt')addItem();
+  }
+});
+
+init();
+</script>
+</body>
+</html>
