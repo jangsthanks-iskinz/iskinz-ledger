@@ -10,27 +10,50 @@
 <meta name="apple-mobile-web-app-title" content="거래원장">
 <title>거래처 원장</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyDMQ8Jj1zZ1pgFlAKgRoODy1ILuzLl4PrA",
-  authDomain: "iskinz-ledger-bc372.firebaseapp.com",
-  projectId: "iskinz-ledger-bc372",
-  storageBucket: "iskinz-ledger-bc372.firebasestorage.app",
-  messagingSenderId: "288339036519",
-  appId: "1:288339036519:web:069cfa88f174b32aa007c2",
-  measurementId: "G-LS6GEHYJGV"
-};
-firebase.initializeApp(firebaseConfig);
-var db = firebase.firestore();
+var db = null;
 var syncEnabled = false;
 var syncUnsubscribe = null;
 
+function initFirebase(){
+  try{
+    if(typeof firebase==='undefined'){console.warn('Firebase 미로드');return;}
+    if(!firebase.apps.length) firebase.initializeApp({
+      apiKey: "AIzaSyDMQ8Jj1zZ1pgFlAKgRoODy1ILuzLl4PrA",
+      authDomain: "iskinz-ledger-bc372.firebaseapp.com",
+      projectId: "iskinz-ledger-bc372",
+      storageBucket: "iskinz-ledger-bc372.firebasestorage.app",
+      messagingSenderId: "288339036519",
+      appId: "1:288339036519:web:069cfa88f174b32aa007c2"
+    });
+    db = firebase.firestore();
+    if(localStorage.getItem('ar_sync')==='1'){
+      syncEnabled=true;
+      var btn=document.getElementById('syncBtn');
+      if(btn)btn.style.background='rgba(76,175,80,.5)';
+      startSync();
+    }
+    console.log('Firebase 초기화 완료');
+  }catch(e){console.warn('Firebase 초기화 실패:',e);}
+}
+
+function loadFirebase(){
+  var s1=document.createElement('script');
+  s1.src='https://cdn.jsdelivr.net/npm/firebase@9.23.0/compat/app.min.js';
+  s1.onload=function(){
+    var s2=document.createElement('script');
+    s2.src='https://cdn.jsdelivr.net/npm/firebase@9.23.0/compat/firestore.min.js';
+    s2.onload=function(){ initFirebase(); };
+    s2.onerror=function(){ console.warn('Firestore 로드 실패'); };
+    document.head.appendChild(s2);
+  };
+  s1.onerror=function(){ console.warn('Firebase App 로드 실패'); };
+  document.head.appendChild(s1);
+}
+
 // 클라우드 저장
 function cloudSave(data) {
-  if(!syncEnabled) return;
+  if(!syncEnabled || !db) return;
   db.collection('iskinz').doc('ledger').set(data).catch(function(e){
     console.warn('클라우드 저장 실패:', e);
   });
@@ -38,6 +61,7 @@ function cloudSave(data) {
 
 // 클라우드 실시간 감지 시작
 function startSync() {
+  if(!db){ alert('Firebase 연결 실패. 페이지를 새로고침해주세요.'); return; }
   if(syncUnsubscribe) syncUnsubscribe();
   syncUnsubscribe = db.collection('iskinz').doc('ledger').onSnapshot(function(doc) {
     if(!doc.exists) return;
@@ -335,6 +359,11 @@ tbody tr:active{background:#f5f7ff}
         <div id="recList"><div class="empty"><p>거래 내역이 없습니다</p></div></div>
         <button class="btn btn-outline btn-full btn-sm" style="margin-top:8px" onclick="goPage(3)">📊 전체 원장 보기</button>
       </div>
+      <!-- 거래처 상세 정보 -->
+      <div class="card" id="custInfoCard" style="display:none">
+        <div class="sec-title">🏥 거래처 정보 <button class="btn btn-outline btn-sm" style="margin-left:auto;padding:4px 10px;min-height:0;font-size:11px" onclick="openCustInfo(sel)">✎ 수정</button></div>
+        <div id="custInfoBody" style="font-size:13px;line-height:2"></div>
+      </div>
     </div>
     <div style="height:10px"></div>
   </div>
@@ -554,11 +583,59 @@ tbody tr:active{background:#f5f7ff}
     <div class="sheet-body">
       <div class="fg"><label>거래처 코드 <span style="font-weight:400;color:var(--txt3)">(비워두면 자동생성)</span></label><input type="text" id="ncCode" placeholder="예: 0001"></div>
       <div class="fg"><label>거래처명 *</label><input type="text" id="ncName" placeholder="거래처명 입력"></div>
+      <div class="fg"><label>대표자명</label><input type="text" id="ncCeo" placeholder="예: 홍길동"></div>
+      <div class="fg"><label>전화번호</label><input type="tel" id="ncTel" placeholder="예: 010-1234-5678" inputmode="tel"></div>
+      <div class="fg"><label>주소</label><input type="text" id="ncAddr" placeholder="예: 서울시 강남구..."></div>
       <div class="fg"><label>전기이월 잔액</label><input type="text" id="ncBal" placeholder="0" oninput="fmt(this)" inputmode="numeric"></div>
     </div>
     <div class="sheet-ft">
       <button class="btn btn-outline" style="flex:1" onclick="closeSheet('shAddCust')">취소</button>
       <button class="btn btn-primary" style="flex:2" onclick="addCust()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 거래처 정보 조회/수정 시트 ===== -->
+<div class="sheet-bg" id="shCustInfo">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd"><h3 id="custInfoTitle">거래처 정보</h3></div>
+    <div class="sheet-body">
+      <div class="fg"><label>거래처 코드</label><input type="text" id="ciCode" readonly style="background:#f5f5f5;color:var(--txt2)"></div>
+      <div class="fg"><label>거래처명 *</label><input type="text" id="ciName" placeholder="거래처명"></div>
+      <div class="fg"><label>대표자명</label><input type="text" id="ciCeo" placeholder="예: 홍길동"></div>
+      <div class="fg"><label>전화번호</label>
+        <div style="display:flex;gap:8px">
+          <input type="tel" id="ciTel" placeholder="예: 010-1234-5678" inputmode="tel" style="flex:1">
+          <a id="ciCall" href="#" class="btn btn-green btn-sm" style="text-decoration:none;display:none">📞 전화</a>
+        </div>
+      </div>
+      <div class="fg"><label>주소</label><input type="text" id="ciAddr" placeholder="주소 입력"></div>
+      <div class="fg"><label>전기이월 잔액</label><input type="text" id="ciBal" placeholder="0" oninput="fmt(this)" inputmode="numeric"></div>
+      <div class="fg"><label>메모</label><textarea id="ciMemo" placeholder="특이사항, 메모..." style="height:70px;resize:none;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;width:100%"></textarea></div>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn btn-outline" style="flex:1" onclick="closeSheet('shCustInfo')">닫기</button>
+      <button class="btn btn-primary" style="flex:2" onclick="saveCustInfo()">💾 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 거래 수정 시트 ===== -->
+<div class="sheet-bg" id="shEditTxn">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd"><h3 id="etTitle">거래 수정</h3></div>
+    <div class="sheet-body">
+      <input type="hidden" id="etId">
+      <input type="hidden" id="etType">
+      <div class="fg"><label>날짜</label><input type="date" id="etDate"></div>
+      <div class="fg"><label>적요 (내용)</label><input type="text" id="etMemo" placeholder="내용 입력"></div>
+      <div class="fg"><label id="etAmtLabel">금액</label><input type="text" id="etAmt" placeholder="0" oninput="fmt(this)" inputmode="numeric" style="font-size:20px;font-weight:700"></div>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn btn-outline" style="flex:1" onclick="closeSheet('shEditTxn')">취소</button>
+      <button class="btn btn-primary" style="flex:2" onclick="saveEditTxn()">💾 저장</button>
     </div>
   </div>
 </div>
@@ -727,14 +804,8 @@ function init(){
   renderRecList();
   renderLedger();
   initPWA();
-  // 동기화 상태 복원
-  var savedSync = localStorage.getItem('ar_sync');
-  if(savedSync==='1'){
-    syncEnabled=true;
-    var btn=document.getElementById('syncBtn');
-    if(btn)btn.style.background='rgba(76,175,80,.5)';
-    startSync();
-  }
+  // Firebase 동적 로드
+  loadFirebase();
 }
 
 /* ── PWA 설치 지원 ── */
@@ -806,8 +877,17 @@ function renderChips(){
   custs.forEach(function(c){
     var btn=document.createElement('button');
     btn.className='chip'+(c.name===sel?' on':'');
-    btn.innerHTML='['+c.code+'] '+c.name+'<span class="cx">✕</span>';
-    btn.querySelector('.cx').addEventListener('click',function(e){
+    btn.innerHTML='['+c.code+'] '+c.name+
+      '<span class="cx" title="정보수정">✎</span>'+
+      '<span class="cx" title="삭제">✕</span>';
+    var spans=btn.querySelectorAll('.cx');
+    // 정보 수정 버튼
+    spans[0].addEventListener('click',function(e){
+      e.stopPropagation();
+      openCustInfo(c.name);
+    });
+    // 삭제 버튼
+    spans[1].addEventListener('click',function(e){
       e.stopPropagation();
       if(confirm('"'+c.name+'" 거래처와 모든 거래를 삭제하시겠습니까?')){
         custs=custs.filter(function(x){return x.name!==c.name;});
@@ -843,13 +923,27 @@ function renderHomeStat(){
   document.getElementById('stD').textContent=fN(totD);
   document.getElementById('stC').textContent=fN(totC);
   document.getElementById('stB').textContent=fN(bal);
+  // 거래처 정보 카드
+  var infoCard=document.getElementById('custInfoCard');
+  var infoBody=document.getElementById('custInfoBody');
+  if(cs&&(cs.ceo||cs.tel||cs.addr||cs.memo)){
+    infoCard.style.display='';
+    var rows='';
+    if(cs.ceo)rows+='<div style="display:flex;gap:8px;align-items:center"><span style="color:var(--txt3);width:60px;font-size:12px">대표자</span><span style="font-weight:600">'+cs.ceo+'</span></div>';
+    if(cs.tel)rows+='<div style="display:flex;gap:8px;align-items:center"><span style="color:var(--txt3);width:60px;font-size:12px">전화</span><a href="tel:'+cs.tel.replace(/[^0-9]/g,'')+'" style="font-weight:600;color:var(--primary);text-decoration:none">📞 '+cs.tel+'</a></div>';
+    if(cs.addr)rows+='<div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--txt3);width:60px;font-size:12px;flex-shrink:0">주소</span><span>'+cs.addr+'</span></div>';
+    if(cs.memo)rows+='<div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--txt3);width:60px;font-size:12px;flex-shrink:0">메모</span><span style="color:var(--orange)">'+cs.memo+'</span></div>';
+    infoBody.innerHTML=rows;
+  } else {
+    infoCard.style.display='none';
+  }
 }
 
 /* ── 최근 거래 (리스트 스타일) ── */
 function renderRecList(){
   var el=document.getElementById('recList');
   if(!sel){el.innerHTML='<div class="empty"><p>거래처를 선택하세요</p></div>';return;}
-  var data=txns.filter(function(t){return t.cust===sel;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;}).slice(0,15);
+  var data=txns.filter(function(t){return t.cust===sel;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;}).slice(0,30);
   if(!data.length){el.innerHTML='<div class="empty"><p>거래 내역이 없습니다</p></div>';return;}
   var cs=custs.find(function(c){return c.name===sel;});
   var allData=txns.filter(function(t){return t.cust===sel;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});
@@ -857,13 +951,18 @@ function renderRecList(){
   allData.forEach(function(t){b+=t.debit-t.credit;bals[t.id]=b;});
   el.innerHTML=data.map(function(t){
     var isSale=t.type==='sale';
-    return '<div class="txn-item">'+
-      '<div class="txn-dot '+(isSale?'sale':'collect')+'"></div>'+
+    return '<div class="txn-item" style="flex-wrap:wrap">'+
+      '<div class="txn-dot '+(isSale?'sale':'collect')+'" style="margin-top:6px"></div>'+
       '<div class="txn-info"><div class="txn-memo">'+t.memo+'</div><div class="txn-date">'+t.date+'</div></div>'+
       '<div class="txn-right">'+
-      '<div class="txn-amt '+(isSale?'sale':'collect')+'">'+(isSale?'+':'-')+fN(isSale?t.debit:t.credit)+'</div>'+
-      '<div class="txn-bal">잔액 '+fN(bals[t.id]||0)+'</div>'+
-      '</div></div>';
+        '<div class="txn-amt '+(isSale?'sale':'collect')+'">'+(isSale?'+':'-')+fN(isSale?t.debit:t.credit)+'</div>'+
+        '<div class="txn-bal">잔액 '+fN(bals[t.id]||0)+'</div>'+
+        '<div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">'+
+          '<button onclick="openEditTxn('+t.id+')" style="font-size:10px;padding:3px 8px;border:1px solid #9fa8da;border-radius:6px;background:#e8eaf6;color:var(--primary);cursor:pointer;font-family:inherit">✎수정</button>'+
+          '<button onclick="deleteTxn('+t.id+')" style="font-size:10px;padding:3px 8px;border:1px solid #ffcdd2;border-radius:6px;background:#ffebee;color:var(--red);cursor:pointer;font-family:inherit">✕삭제</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
   }).join('');
 }
 
@@ -875,13 +974,53 @@ function addCust(){
   if(custs.find(function(c){return c.name===name;}))return alert('이미 존재합니다.');
   var code=document.getElementById('ncCode').value.trim()||nextCode();
   var bal=pnum(document.getElementById('ncBal').value);
-  custs.push({code:code,name:name,carry:bal});
+  var ceo=document.getElementById('ncCeo').value.trim();
+  var tel=document.getElementById('ncTel').value.trim();
+  var addr=document.getElementById('ncAddr').value.trim();
+  custs.push({code:code,name:name,carry:bal,ceo:ceo,tel:tel,addr:addr,memo:''});
   sel=name;
-  document.getElementById('ncCode').value='';
-  document.getElementById('ncName').value='';
-  document.getElementById('ncBal').value='';
+  ['ncCode','ncName','ncBal','ncCeo','ncTel','ncAddr'].forEach(function(id){document.getElementById(id).value='';});
   closeSheet('shAddCust');
   save();renderChips();renderHomeStat();renderRecList();updateBanners();
+}
+
+/* ── 거래처 정보 조회/수정 ── */
+function openCustInfo(name){
+  var cs=custs.find(function(c){return c.name===name;});
+  if(!cs)return;
+  document.getElementById('custInfoTitle').textContent='['+cs.code+'] '+cs.name;
+  document.getElementById('ciCode').value=cs.code||'';
+  document.getElementById('ciName').value=cs.name||'';
+  document.getElementById('ciCeo').value=cs.ceo||'';
+  document.getElementById('ciTel').value=cs.tel||'';
+  document.getElementById('ciAddr').value=cs.addr||'';
+  document.getElementById('ciBal').value=cs.carry?fN(cs.carry):'';
+  document.getElementById('ciMemo').value=cs.memo||'';
+  var callBtn=document.getElementById('ciCall');
+  if(cs.tel){callBtn.style.display='';callBtn.href='tel:'+cs.tel.replace(/[^0-9]/g,'');}
+  else callBtn.style.display='none';
+  openSheet('shCustInfo');
+}
+function saveCustInfo(){
+  var code=document.getElementById('ciCode').value;
+  var cs=custs.find(function(c){return c.code===code;});
+  if(!cs)return;
+  var newName=document.getElementById('ciName').value.trim();
+  if(!newName)return alert('거래처명을 입력하세요.');
+  // 이름 변경시 거래 내역도 업데이트
+  if(cs.name!==newName){
+    txns.forEach(function(t){if(t.cust===cs.name)t.cust=newName;});
+    if(sel===cs.name)sel=newName;
+    cs.name=newName;
+  }
+  cs.ceo=document.getElementById('ciCeo').value.trim();
+  cs.tel=document.getElementById('ciTel').value.trim();
+  cs.addr=document.getElementById('ciAddr').value.trim();
+  cs.carry=pnum(document.getElementById('ciBal').value);
+  cs.memo=document.getElementById('ciMemo').value.trim();
+  closeSheet('shCustInfo');
+  save();renderChips();renderHomeStat();renderRecList();updateBanners();
+  alert('✅ 거래처 정보가 저장되었습니다.');
 }
 
 /* ── 매출 등록 ── */
@@ -1435,6 +1574,44 @@ function renderReorder(){
       (r.avgTerm?'<div style="margin-top:6px"><div class="dash-bar-wrap"><div class="dash-bar" style="width:'+Math.min(100,Math.round(r.daysSinceLast/r.avgTerm*100))+'%;background:linear-gradient(90deg,'+(r.daysSinceLast>=r.avgTerm?'#c62828,#ef9a9a':'#1565c0,#5c6bc0')+')"></div></div><div style="font-size:10px;color:var(--txt3);margin-top:2px;text-align:right">'+Math.round(r.daysSinceLast/r.avgTerm*100)+'%</div></div>':'')+
     '</div>';
   }).join('');
+}
+
+/* ── 거래 수정/삭제 ── */
+function openEditTxn(id){
+  var t=txns.find(function(x){return x.id===id;});
+  if(!t)return;
+  document.getElementById('etId').value=id;
+  document.getElementById('etType').value=t.type;
+  document.getElementById('etDate').value=t.date;
+  document.getElementById('etMemo').value=t.memo;
+  document.getElementById('etAmt').value=t.type==='sale'?fN(t.debit):fN(t.credit);
+  document.getElementById('etTitle').textContent=t.type==='sale'?'📈 매출 수정':'💰 수금 수정';
+  document.getElementById('etAmtLabel').textContent=t.type==='sale'?'매출금액':'수금금액';
+  openSheet('shEditTxn');
+}
+function saveEditTxn(){
+  var id=parseInt(document.getElementById('etId').value);
+  var t=txns.find(function(x){return x.id===id;});
+  if(!t)return;
+  var date=document.getElementById('etDate').value;
+  if(!date)return alert('날짜를 입력하세요.');
+  var memo=document.getElementById('etMemo').value.trim();
+  var amt=pnum(document.getElementById('etAmt').value);
+  if(!amt)return alert('금액을 입력하세요.');
+  t.date=date;
+  t.memo=memo||t.memo;
+  if(t.type==='sale'){t.debit=amt;t.credit=0;}
+  else{t.credit=amt;t.debit=0;}
+  closeSheet('shEditTxn');
+  save();renderHomeStat();renderRecList();renderLedger();
+  alert('✅ 수정되었습니다.');
+}
+function deleteTxn(id){
+  var t=txns.find(function(x){return x.id===id;});
+  if(!t)return;
+  if(!confirm('"'+t.memo+'" ('+t.date+')\n이 거래를 삭제하시겠습니까?'))return;
+  txns=txns.filter(function(x){return x.id!==id;});
+  save();renderHomeStat();renderRecList();renderLedger();
 }
 
 /* ── 유틸 ── */
